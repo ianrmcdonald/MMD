@@ -2,7 +2,7 @@
 library(tidyverse)
 
 #the import step
-npat_june_2015 <- read_delim("shor mccarty 1993-2014 state individual legislator scores public June 2015.tab", delim="\t", escape_double=FALSE)
+npat_june_2015 <- read_delim("shor mccarty 1993-2014 state individual legislator scores public June 2015.tab", delim="\t", escape_double=FALSE) ##
 
 npat_june_2015 <- npat_june_2015 %>% mutate(member_id = paste0(st, sprintf("%04d", st_id)))
 
