@@ -14,7 +14,7 @@ npat_master <- npat_june_2015 %>% select(name, party, st, member_id, np_score)
 leg_counts <- read_csv("district numbers.csv")
 
 st_list <-  leg_counts %>% 
-  filter(double == TRUE) %>%  ###
+  filter(double == TRUE) %>%  ####
         
   select(stcd) 
 
