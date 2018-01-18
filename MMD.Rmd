@@ -1,0 +1,21 @@
+---
+title: "Multi Member Districts"
+output: html_notebook
+---
+Install the libraries and create an R data frame from the downloaded shor mccarty 1993-2014 state individual legislator file.  Creates npat_june_2015, and npat_master, which includes name, party, state, member_id and np_score
+
+```{r}
+library(tidyverse)
+library(lubridate)
+
+
+#the import step
+npat_june_2015 <- read_delim("shor mccarty 1993-2014 state individual legislator scores public June 2015.tab", delim="\t", escape_double=FALSE) ##
+
+npat_june_2015 <- npat_june_2015 %>% mutate(member_id = paste0(st, sprintf("%04d", st_id)))
+
+if (nrow(npat_june_2015) != length(unique(npat_june_2015$member_id))) message("Error:  Duplicate member_id")
+
+npat_master <- npat_june_2015 %>% select(name, party, st, member_id, np_score)
+```
+

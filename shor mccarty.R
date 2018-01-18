@@ -1,5 +1,6 @@
-
 library(tidyverse)
+library(lubridate)
+
 
 #the import step
 npat_june_2015 <- read_delim("shor mccarty 1993-2014 state individual legislator scores public June 2015.tab", delim="\t", escape_double=FALSE) ##
@@ -14,84 +15,79 @@ npat_master <- npat_june_2015 %>% select(name, party, st, member_id, np_score)
 leg_counts <- read_csv("district numbers.csv")
 
 st_list <-  leg_counts %>% 
-  filter(double == TRUE) %>%  ####
-        
+  filter(double == TRUE) %>%  
   select(stcd) 
 
-st_list <- map_chr(st_list[[1]], as.character) #
+st_list <- map_chr(st_list[[1]], as.character) 
 
 fields <- names(npat_june_2015[6:93])
 years <- c(1993:2014)
-field_names <- cbind(years, senate_year = fields[1:22], house_year = fields[23:44], senate_districts = fields[45:66], house_districts = fields[67:88])
+field_names <- as.tibble(cbind(years, senate_year = fields[1:22], house_year = fields[23:44], senate_districts = fields[45:66], house_districts = fields[67:88]))
 
-genh <- function(y, chamber="lower") {
+gen_chamber <- function(year, chamber="lower") {
   
   if (chamber == "lower") {
-       district_field <- paste0("hdistrict", y)
-       district_flag <- paste0("house", as.character(y))
+       district_field <- paste0("hdistrict", year)
+       district_flag <- paste0("house", year)
   } else if (chamber == "upper") {
-      district_field <- paste0("sdistrict", y)
-      district_flag <- paste0("senate", y)
+      district_field <- paste0("sdistrict", year)
+      district_flag <- paste0("senate", year)
   } else {
       stop("what is the chamber?")
   }
-
-  
-  h <- npat_june_2015 %>% 
+        
+  chamber <- npat_june_2015 %>% 
     drop_na(!!district_flag) %>% 
     rename(district = !!district_field) %>% 
     mutate(district = paste0(st,"_",district)) %>% 
     select(member_id, party, st, district, np_score) %>% 
-    mutate(year = y)
+    mutate(year = year)
                                                               
-  return(h)
+  return(chamber)
 
 }
 
-h <- map_dfr(years, genh, chamber = "lower")
-s <- map_dfr(years, genh, chamber = "upper")
-m <- h %>% group_by(st, year) %>% summarise(mean = mean(np_score))
-m <- m %>% spread(year, mean)
-#validate a single record for each row in h and s equals 1's in source
-source_1_values <- rowSums(npat_june_2015[,6:49], na.rm=TRUE)
-if (nrow(h) + nrow(s) != sum(source_1_values)) message("Error: Sum of source records does not equal lengths of h + s")
+lower <- map_dfr(years, gen_chamber, chamber = "lower")
+upper <- map_dfr(years, gen_chamber, chamber = "upper")
+overall_mean_scores <- lower %>% group_by(st, year) %>% summarise(mean = mean(np_score)) %>% spread(year, mean)
 
+#error check:  validate a single record for each row in h and s equals 1's in source
+source_1_values <- rowSums(npat_june_2015[,6:49], na.rm=TRUE)
+if (nrow(lower) + nrow(upper) != sum(source_1_values)) message("Error: Sum of source records does not equal lengths of lower + upper")
 
 # relabel Washington State districts from WA_xxx-0[1 or 2] to WA_xxx
+lower <- lower %>% mutate(district = if_else(st == "WA", substr(district, 1, 6), district))
 
-h <- h %>% mutate(district = if_else(st == "WA", substr(district, 1, 6), district))
+# drop any states that do not appear in st_list, i.e., states with multi-member districts.
+lower <- lower %>% filter(st %in% st_list)
+upper <- upper %>% filter(st %in% st_list)
 
-h <- h %>% filter(st %in% st_list)
-s <- s %>% filter(st %in% st_list)
+double_dists <- lower %>% group_by(district, year) %>% summarise(freq = n()) %>% filter(freq > 1)
+lower <- inner_join(lower, double_dists)
+upper <- inner_join(upper, double_dists) #presumes district numbers of upper house and lower house are identical
 
-double_dists <- h %>% group_by(district, year) %>% summarise(freq = n()) %>% filter(freq > 1)
-
-h <- inner_join(h, double_dists)
-s <- inner_join(s, double_dists)
-
-splits <- h %>% group_by(district, year) %>% 
+#split districts are those with at least one D and one R in the same term
+split_districts <- lower %>% group_by(district, year) %>% 
   count(party) %>% 
   spread(party, n) %>% 
   mutate(D = if_else(is.na(D), 0, as.double(D))) %>% 
   mutate(I = if_else(is.na(I), 0, as.double(I))) %>% 
   mutate(R = if_else(is.na(R), 0, as.double(R))) %>% 
-  mutate(split = if_else(D >= 1 & R >= 1, TRUE, FALSE))
+  mutate(split = if_else(D >= 1 & R >= 1, TRUE, FALSE)) %>%
+  mutate(split_label = if_else(split==TRUE, "2 Party Dists", "1 Party Dists")) %>%
+  mutate(state = substr(district,1,2))
 
-#1  Increase or decrease in split voting over the years
-#2  NPAT scores
+#compute means by year, state, and split status
+state_group <- group_by(lower, district, year)
+state_means_and_range <- state_group %>% summarise(mean=mean(np_score), max=max(np_score), min=min(np_score))
+state_means_and_range <- inner_join(split_districts, state_means_and_range, by=c("district","year"))
+state_means_and_range<- state_means_and_range %>% mutate(range = max - min)
 
-splits <- mutate(splits, state = substr(district,1,2))
+anal <- state_means_and_range %>% group_by(state, year, split, split_label) %>% summarise(range = mean(range), count = n()) %>% mutate(ss = if_else(split==TRUE, paste0(state,"-","2 Party Dists"), paste0(state,"-","1 Party Dists")))
 
-g <- group_by(h,district,year)
-gg <- g %>% summarise(mean=mean(np_score), max=max(np_score), min=min(np_score))
-i <- inner_join(splits, gg, by=c("district","year"))
-i <- i %>% mutate(range = max - min)
+mmd_plot <- ggplot(data=anal, aes(x=year, y=range, color=ss)) +
+  geom_line(aes(linetype=split_label), show.legend=TRUE) + facet_wrap(~state)
+mmd_plot
+save.image(file = "State Means and Ranges.png")
 
-anal <- group_by(i, state, year, split)
-anal <- summarise(anal, range = mean(range))
-anal <- anal %>% mutate(ss = paste0(state,"-",split))
-
-#anal <- anal %>% spread(year,range)
-
-ggplot(data=anal, aes(x=year, y=range, color=ss)) +
-  geom_line(aes(linetype=split)) + facet_wrap(~state)
+#use r for tables http://blogs.reed.edu/ed-tech/2015/10/creating-nice-tables-using-r-markdown/
