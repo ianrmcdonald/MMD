@@ -1,30 +1,44 @@
 library(tidyverse)
 library(lubridate)
-
+source_data <- "shor mccarty 1993-2014 state individual legislator scores public June 2015.tab"
 
 #the import step
-npat_june_2015 <- read_delim("shor mccarty 1993-2014 state individual legislator scores public June 2015.tab", delim="\t", escape_double=FALSE) ##
+npat_june_2015 <- source_data %>% 
+        read_delim(delim="\t", escape_double=FALSE) %>% 
+        mutate(member_id = paste0(st, sprintf("%04d", st_id)))
 
-npat_june_2015 <- npat_june_2015 %>% mutate(member_id = paste0(st, sprintf("%04d", st_id)))
-
-if (nrow(npat_june_2015) != length(unique(npat_june_2015$member_id))) message("Error:  Duplicate member_id")
+if (nrow(npat_june_2015) != length(unique(npat_june_2015$member_id))) message("Error:  There is a duplicate member_id somewhere in npat_june_2015")
 
 npat_master <- npat_june_2015 %>% select(name, party, st, member_id, np_score)
 
 #https://ballotpedia.org/State_legislative_chambers_that_use_multi-member_districts
 leg_counts <- read_csv("district numbers.csv")
 
-st_list <-  leg_counts %>% 
+state_legislatures <- leg_counts %>% 
   filter(double == TRUE) %>%  
   select(stcd) 
 
-st_list <- map_chr(st_list[[1]], as.character) 
+# st_list <- map_chr(st_list[[1]], as.character) 
 
 fields <- names(npat_june_2015[6:93])
-years <- c(1993:2014)
-field_names <- as.tibble(cbind(years, senate_year = fields[1:22], house_year = fields[23:44], senate_districts = fields[45:66], house_districts = fields[67:88]))
+years <- c(2003:2014)
+string_sections <- c("senate", "house", "sdistrict", "hdistrict")
 
-gen_chamber <- function(year, chamber="lower") {
+make_field_name <- function(year, field_names, string_section) {
+        
+        s <- paste0(string_section, as.character(year))
+        x <- str_detect(s, field_names)
+        which(x)
+}
+
+make_f1 <- map_dbl(years, make_field_name, field_names = fields, string_section = "sdistrict")
+make_f2 <- map_dbl(years, make_field_name, field_names = fields, string_section = "hdistrict")
+make_f3 <- map_dbl(years, make_field_name, field_names = fields, string_section = "senate")
+make_f4 <- map_dbl(years, make_field_name, field_names = fields, string_section = "house")
+
+field_names <- bind_cols(year = years, senate_year = fields[make_f1], house_year = fields[make_f2], senate_districts = fields[make_f3], house_districts = fields[make_f4])
+
+generate_chamber_table <- function(year, chamber="lower") {
   
   if (chamber == "lower") {
        district_field <- paste0("hdistrict", year)
@@ -37,23 +51,18 @@ gen_chamber <- function(year, chamber="lower") {
   }
         
   chamber <- npat_june_2015 %>% 
-    drop_na(!!district_flag) %>% 
-    rename(district = !!district_field) %>% 
-    mutate(district = paste0(st,"_",district)) %>% 
-    select(member_id, party, st, district, np_score) %>% 
-    mutate(year = year)
-                                                              
-  return(chamber)
-
+        drop_na(!!district_flag) %>% 
+        rename(district = !!district_field) %>% 
+        mutate(district = paste0(st,"_",district)) %>% 
+        select(member_id, party, st, district, np_score) %>% 
+        mutate(year = year)
+                                                             
 }
 
-lower <- map_dfr(years, gen_chamber, chamber = "lower")
-upper <- map_dfr(years, gen_chamber, chamber = "upper")
+lower <- map_dfr(years, generate_chamber_table, chamber = "lower")
+upper <- map_dfr(years, generate_chamber_table, chamber = "upper")
 overall_mean_scores <- lower %>% group_by(st, year) %>% summarise(mean = mean(np_score)) %>% spread(year, mean)
 
-#error check:  validate a single record for each row in h and s equals 1's in source
-source_1_values <- rowSums(npat_june_2015[,6:49], na.rm=TRUE)
-if (nrow(lower) + nrow(upper) != sum(source_1_values)) message("Error: Sum of source records does not equal lengths of lower + upper")
 
 # relabel Washington State districts from WA_xxx-0[1 or 2] to WA_xxx
 lower <- lower %>% mutate(district = if_else(st == "WA", substr(district, 1, 6), district))
