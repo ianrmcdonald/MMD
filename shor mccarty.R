@@ -18,10 +18,10 @@ state_legislatures <- leg_counts %>%
   filter(double == TRUE) %>%  
   select(stcd) 
 
-# st_list <- map_chr(st_list[[1]], as.character) 
+state_legislatures <- map_chr(state_legislatures[[1]], as.character) 
 
 fields <- names(npat_june_2015[6:93])
-years <- c(2003:2014)
+years <- c(1993:2014)
 string_sections <- c("senate", "house", "sdistrict", "hdistrict")
 
 make_field_name <- function(year, field_names, string_section) {
@@ -61,19 +61,29 @@ generate_chamber_table <- function(year, chamber="lower") {
 
 lower <- map_dfr(years, generate_chamber_table, chamber = "lower")
 upper <- map_dfr(years, generate_chamber_table, chamber = "upper")
-overall_mean_scores <- lower %>% group_by(st, year) %>% summarise(mean = mean(np_score)) %>% spread(year, mean)
 
+overall_mean_scores <- lower %>% 
+        group_by(st, year) %>% 
+        summarise(mean = mean(np_score)) %>% 
+        spread(year, mean)
 
 # relabel Washington State districts from WA_xxx-0[1 or 2] to WA_xxx
-lower <- lower %>% mutate(district = if_else(st == "WA", substr(district, 1, 6), district))
+lower <- lower %>% 
+        mutate(district = if_else(st == "WA", substr(district, 1, 6), district))
 
 # drop any states that do not appear in st_list, i.e., states with multi-member districts.
-lower <- lower %>% filter(st %in% st_list)
-upper <- upper %>% filter(st %in% st_list)
+lower <- lower %>% filter(st %in% state_legislatures)
+upper <- upper %>% filter(st %in% state_legislatures)
 
-double_dists <- lower %>% group_by(district, year) %>% summarise(freq = n()) %>% filter(freq > 1)
+double_dists <- lower %>% 
+        group_by(district, year) %>% 
+        summarise(freq = n()) %>% 
+        filter(freq > 1)
+
 lower <- inner_join(lower, double_dists)
-upper <- inner_join(upper, double_dists) #presumes district numbers of upper house and lower house are identical
+upper <- inner_join(upper, double_dists) 
+
+#presumes district numbers of upper house and lower house are identical
 
 #split districts are those with at least one D and one R in the same term
 split_districts <- lower %>% group_by(district, year) %>% 
@@ -88,15 +98,41 @@ split_districts <- lower %>% group_by(district, year) %>%
 
 #compute means by year, state, and split status
 state_group <- group_by(lower, district, year)
-state_means_and_range <- state_group %>% summarise(mean=mean(np_score), max=max(np_score), min=min(np_score))
-state_means_and_range <- inner_join(split_districts, state_means_and_range, by=c("district","year"))
-state_means_and_range<- state_means_and_range %>% mutate(range = max - min)
 
-anal <- state_means_and_range %>% group_by(state, year, split, split_label) %>% summarise(range = mean(range), count = n()) %>% mutate(ss = if_else(split==TRUE, paste0(state,"-","2 Party Dists"), paste0(state,"-","1 Party Dists")))
+state_means_and_range <- state_group %>% summarise(mean=mean(np_score), max=max(np_score), min=min(np_score))
+
+state_means_and_range <- inner_join(split_districts, state_means_and_range, by=c("district","year"))
+
+state_means_and_range <- inner_join(leg_counts, state_means_and_range, by=c("stcd"="state"))
+
+state_means_and_range<- state_means_and_range %>% 
+        mutate(range = max - min) %>% 
+        select(-one_of(c("upper", "upper_term", "lower_term"))) 
+
+anal <- state_means_and_range %>% 
+        group_by(stcd, year) %>% 
+        mutate(denom = n()) %>% 
+        group_by(split, split_label, add=TRUE) %>% 
+        mutate(range = mean(range), count = n()) %>%
+        mutate(spct = count / denom) %>% 
+        mutate(ss = if_else(split==TRUE, 
+                            paste0(stcd,"-","2 Party Dists"), 
+                            paste0(stcd,"-","1 Party Dists")))
+
+#group_by(df, group) %>% mutate(percent = value/sum(value))
+
+anal <- anal %>% group_by(state, year) %>% 
+        summarise(denom = sum(count))
+
+anal <- inner_join(anal, a)
+anal <- anal %>% mutate(spct = count / denom)
 
 mmd_plot <- ggplot(data=anal, aes(x=year, y=range, color=ss)) +
-  geom_line(aes(linetype=split_label), show.legend=TRUE) + facet_wrap(~state)
+        geom_line(aes(linetype=split_label), show.legend=TRUE) + 
+        facet_wrap(~state)
+
 mmd_plot
+
 save.image(file = "State Means and Ranges.png")
 
 #use r for tables http://blogs.reed.edu/ed-tech/2015/10/creating-nice-tables-using-r-markdown/
