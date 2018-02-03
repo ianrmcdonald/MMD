@@ -126,7 +126,8 @@ anal <- state_means_and_range %>%
 mmd_plot <- ggplot(data=anal, aes(x=year, y=range, color=ss)) +
         ylab("Difference between Max and Min Average NPAT Score") +
         geom_line(aes(linetype=split_label), show.legend=FALSE) + 
-        facet_wrap(~stcd)
+        facet_wrap(~stcd)+
+        theme(axis.text.x=element_text(color = "black", size=11, angle=30, vjust=.8, hjust=0.8))
 
 mmd_plot
 
@@ -135,7 +136,8 @@ save.image(file = "State Means and Ranges.png")
 mmd_plot <- ggplot(data=anal, aes(x=year, y=spct, color=ss)) +
         ylab("Percentage of All Districts") +
         geom_line(aes(linetype=split_label), show.legend=FALSE) + 
-        facet_wrap(~stcd)
+        facet_wrap(~stcd) +
+        theme(axis.text.x=element_text(color = "black", size=11, angle=30, vjust=.8, hjust=0.8))
 
 mmd_plot
 
