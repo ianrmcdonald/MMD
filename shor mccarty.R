@@ -67,9 +67,9 @@ overall_mean_scores <- lower %>%
         summarise(mean = mean(np_score)) %>% 
         spread(year, mean)
 
-# relabel Washington State districts from WA_xxx-0[1 or 2] to WA_xxx
+# relabel Washington State and Idaho districts from WA_xxx-0[1 or 2] to WA_xxx
 lower <- lower %>% 
-        mutate(district = if_else(st == "WA", substr(district, 1, 6), district))
+        mutate(district = if_else(st == "WA" | st == "ID", substr(district, 1, 6), district))
 
 # drop any states that do not appear in st_list, i.e., states with multi-member districts.
 lower <- lower %>% filter(st %in% state_legislatures)
@@ -99,7 +99,8 @@ split_districts <- lower %>% group_by(district, year) %>%
 #compute means by year, state, and split status
 state_group <- group_by(lower, district, year)
 
-state_means_and_range <- state_group %>% summarise(mean=mean(np_score), max=max(np_score), min=min(np_score))
+state_means_and_range <- state_group %>% 
+        summarise(mean=mean(np_score), max=max(np_score), min=min(np_score))
 
 state_means_and_range <- inner_join(split_districts, state_means_and_range, by=c("district","year"))
 
@@ -112,6 +113,7 @@ state_means_and_range<- state_means_and_range %>%
 anal <- state_means_and_range %>% 
         group_by(stcd, year) %>% 
         mutate(denom = n()) %>% 
+        
         group_by(split, split_label, add=TRUE) %>% 
         mutate(range = mean(range), count = n()) %>%
         mutate(spct = count / denom) %>% 
@@ -121,18 +123,21 @@ anal <- state_means_and_range %>%
 
 #group_by(df, group) %>% mutate(percent = value/sum(value))
 
-anal <- anal %>% group_by(state, year) %>% 
-        summarise(denom = sum(count))
-
-anal <- inner_join(anal, a)
-anal <- anal %>% mutate(spct = count / denom)
-
 mmd_plot <- ggplot(data=anal, aes(x=year, y=range, color=ss)) +
-        geom_line(aes(linetype=split_label), show.legend=TRUE) + 
-        facet_wrap(~state)
+        ylab("Difference between Max and Min Average NPAT Score") +
+        geom_line(aes(linetype=split_label), show.legend=FALSE) + 
+        facet_wrap(~stcd)
 
 mmd_plot
 
 save.image(file = "State Means and Ranges.png")
 
-#use r for tables http://blogs.reed.edu/ed-tech/2015/10/creating-nice-tables-using-r-markdown/
+mmd_plot <- ggplot(data=anal, aes(x=year, y=spct, color=ss)) +
+        ylab("Percentage of All Districts") +
+        geom_line(aes(linetype=split_label), show.legend=FALSE) + 
+        facet_wrap(~stcd)
+
+mmd_plot
+
+save.image(file = "Proportion of Districts with One Party v. Two Party")
+
