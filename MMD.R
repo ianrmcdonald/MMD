@@ -1,5 +1,6 @@
 library(tidyverse)
 library(lubridate)
+library(stringr)
 source_data <- "shor mccarty 1993-2014 state individual legislator scores public June 2015.tab" ##
 
 #the import step
@@ -81,7 +82,6 @@ double_dists <- lower %>%
         filter(freq > 1)
 
 lower <- inner_join(lower, double_dists)
-upper <- inner_join(upper, double_dists) 
 
 #presumes district numbers of upper house and lower house are identical
 

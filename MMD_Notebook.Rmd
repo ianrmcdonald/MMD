@@ -1,0 +1,47 @@
+---
+title: "Multi Member District Analysis"
+output: html_notebook
+---
+
+This notebook includes R code under development for my analysis of multi member districts in U.S. state legislatures.  The description covers the R code and does not include background on the project's research questions or hypotheses.
+
+The script adapts a dataset published by the Harvard Dataverse from Shor and McCarty (2011, 2015), and generates two preliminary lattice graphs. The dataset provides estimates of state legislator ideology scores, converted to a common scale.  The data uses legislator roll calls analogous to DW-NOMINATE scores for U.S. Congress members, popularized by the work of Poole and Rosenthal. Shor and McCarty normalize these scores into a single scale using results from Project Votesmart National Political Awareness Test (NPAT), and then consolidate scores across multiple sessions to report a single career score for each state legislator (including both upper and lower houses).
+
+I use data reported from 2015 covering 1993-2014.  
+
+The code applies Tidyverse modules, including dplyr, ggplot2, and purrr.  
+
+```{r}
+library(tidyverse)
+library(lubridate)
+```
+
+```{r}
+source_data <- "shor mccarty 1993-2014 state individual legislator scores public June 2015.tab" ##
+
+#the import step
+npat_june_2015 <- source_data %>% 
+        read_delim(delim="\t", escape_double=FALSE) %>% 
+        mutate(member_id = paste0(st, sprintf("%04d", st_id)))
+
+if (nrow(npat_june_2015) != length(unique(npat_june_2015$member_id))) message("Error:  There is a duplicate member_id somewhere in npat_june_2015")
+
+npat_master <- npat_june_2015 %>% 
+        select(name, party, st, member_id, np_score)
+
+```
+
+
+```{r}
+#https://ballotpedia.org/State_legislative_chambers_that_use_multi-member_districts
+
+leg_counts <- read_csv("district numbers.csv")
+
+state_legislatures <- leg_counts %>% 
+  filter(double == TRUE) %>%  
+  select(stcd) 
+
+state_legislatures <- map_chr(state_legislatures[[1]], as.character) 
+
+```
+
