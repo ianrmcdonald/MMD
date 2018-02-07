@@ -1,6 +1,13 @@
 library(tidyverse)
 library(lubridate)
-source_data <- "shor mccarty 1993-2014 state individual legislator scores public June 2015.tab"
+
+
+#  https://americanlegislatures.com/data/
+#  https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/K7ELHW
+#  Codebook at https://dataverse.harvard.edu/file.xhtml;jsessionid=1c69c8124a4cfab1d433500079ac?fileId=2690452&version=RELEASED&version=.0
+
+
+source_data <- "shor mccarty 1993-2014 state individual legislator scores public June 2015.tab" ##
 
 #the import step
 npat_june_2015 <- source_data %>% 
@@ -9,9 +16,11 @@ npat_june_2015 <- source_data %>%
 
 if (nrow(npat_june_2015) != length(unique(npat_june_2015$member_id))) message("Error:  There is a duplicate member_id somewhere in npat_june_2015")
 
-npat_master <- npat_june_2015 %>% select(name, party, st, member_id, np_score)
+npat_master <- npat_june_2015 %>% 
+        select(name, party, st, member_id, np_score)
 
 #https://ballotpedia.org/State_legislative_chambers_that_use_multi-member_districts
+
 leg_counts <- read_csv("district numbers.csv")
 
 state_legislatures <- leg_counts %>% 
@@ -71,7 +80,7 @@ overall_mean_scores <- lower %>%
 lower <- lower %>% 
         mutate(district = if_else(st == "WA" | st == "ID", substr(district, 1, 6), district))
 
-# drop any states that do not appear in st_list, i.e., states with multi-member districts.
+# include only states appearing in the state_legislatures vector.
 lower <- lower %>% filter(st %in% state_legislatures)
 upper <- upper %>% filter(st %in% state_legislatures)
 
@@ -82,8 +91,6 @@ double_dists <- lower %>%
 
 lower <- inner_join(lower, double_dists)
 upper <- inner_join(upper, double_dists) 
-
-#presumes district numbers of upper house and lower house are identical
 
 #split districts are those with at least one D and one R in the same term
 split_districts <- lower %>% group_by(district, year) %>% 
@@ -123,23 +130,21 @@ anal <- state_means_and_range %>%
 
 #group_by(df, group) %>% mutate(percent = value/sum(value))
 
-mmd_plot <- ggplot(data=anal, aes(x=year, y=range, color=ss)) +
+(mmd_plot <- ggplot(data=anal, aes(x=year, y=range, color=ss)) +
         ylab("Difference between Max and Min Average NPAT Score") +
         geom_line(aes(linetype=split_label), show.legend=FALSE) + 
         facet_wrap(~stcd)+
         theme(axis.text.x=element_text(color = "black", size=11, angle=30, vjust=.8, hjust=0.8))
-
-mmd_plot
+        )
 
 save.image(file = "State Means and Ranges.png")
 
-mmd_plot <- ggplot(data=anal, aes(x=year, y=spct, color=ss)) +
+(mmd_plot <- ggplot(data=anal, aes(x=year, y=spct, color=ss)) +
         ylab("Percentage of All Districts") +
         geom_line(aes(linetype=split_label), show.legend=FALSE) + 
         facet_wrap(~stcd) +
         theme(axis.text.x=element_text(color = "black", size=11, angle=30, vjust=.8, hjust=0.8))
-
-mmd_plot
+        )
 
 save.image(file = "Proportion of Districts with One Party v. Two Party")
 
