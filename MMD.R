@@ -6,7 +6,6 @@ library(lubridate)
 #  Codebook at https://dataverse.harvard.edu/file.xhtml;jsessionid=1c69c8124a4cfab1d433500079ac?fileId=2690452&version=RELEASED&version=.0
 
 
->>>>>>> 69cd2aec9444dad7d2e837de8d671a16fbf58b01
 source_data <- "shor mccarty 1993-2014 state individual legislator scores public June 2015.tab" ##
 
 #the import step
