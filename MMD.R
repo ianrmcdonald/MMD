@@ -1,9 +1,5 @@
 library(tidyverse)
 library(lubridate)
-<<<<<<< HEAD
-library(stringr)
-=======
-
 
 #  https://americanlegislatures.com/data/
 #  https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/K7ELHW
