@@ -4,6 +4,8 @@ output:
   pdf_document: default
   html_notebook: default
 ---
+Ian McDonald
+14-Feb-2018
 
 This notebook includes R code under development for my analysis of multi member districts in U.S. state legislatures.  The description covers the R code and does not include background on the project's research questions or hypotheses.
 
@@ -187,20 +189,24 @@ anal <- state_means_and_range %>%
 The states shown have multi-member districts.  The solid line represents districts where each representative comes from the same party.  The dashed lines are districts with one (or more) representative from each party. 
 
 ```{r}
+title_1 <- "Multi Member District State Legislatures"
+subtitle_1 <- "Differences between Difference between Max and Min Average NPAT Score"
+caption_1 <- "Solid Line = Members from Same Party, Dashed Line = Members from 2+ parties"
 
 mmd_plot_1 <- ggplot(data=anal, aes(x=year, y=range, color=ss)) +
         ylab("Difference between Max and Min Average NPAT Score") +
+        labs(title = title_1, subtitle = subtitle_1) +
         geom_line(aes(linetype=split_label), show.legend=FALSE) + 
         facet_wrap(~stcd)+
         theme(axis.text.x=element_text(color = "black", size=6, angle=30, vjust=.8, hjust=0.8))
 
-mmd_plot_1
-        
-
 save.image(file = "State Means and Ranges.png")
-
+title_2 <- "Multi Member District State Legislatures"
+subtitle_2 <- "Proportion of Districts with One Party v. Two Party"
+caption_2 <- "Solid Line = Members from Same Party, Dashed Line = Members from 2+ parties"
 mmd_plot_2 <- ggplot(data=anal, aes(x=year, y=spct, color=ss)) +
         ylab("Proportion of All Districts") +
+        labs(title = title_2, subtitle = subtitle_2, caption = caption_2) +
         geom_line(aes(linetype=split_label), show.legend=FALSE) + 
         facet_wrap(~stcd) +
         theme(axis.text.x=element_text(color = "black", size=6, angle=30, vjust=.8, hjust=0.8))
