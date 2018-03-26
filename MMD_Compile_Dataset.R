@@ -233,14 +233,18 @@ princeton_WA_OR <- princeton %>% filter(State == "WA" | State == "OR" | State ==
         mutate(district = paste0(State,"_",sprintf("%03d", District)))
 
 #tw data
-tw_lower_2002_WA_OR <- tw_lower_2002 %>% filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
+tw_lower_2002_WA_OR <- tw_lower_2002 %>% 
+        filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
         mutate(district = paste0(abb,"_",sprintf("%03d", shd_fips_num %% 100)))
 
-tw_lower_2012_WA_OR <- tw_lower_2012 %>% filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
+tw_lower_2012_WA_OR <- tw_lower_2012 %>% 
+        filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
         mutate(district = paste0(abb,"_",sprintf("%03d", as.integer(district))))
 
-tw_upper_2002_WA_OR <- tw_upper_2002 %>% filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
+tw_upper_2002_WA_OR <- tw_upper_2002 %>% 
+        filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
         mutate(district = paste0(abb,"_",sprintf("%03d", ssd_fips_num %% 100)))
 
-tw_upper_2012_WA_OR <- tw_upper_2012 %>% filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
+tw_upper_2012_WA_OR <- tw_upper_2012 %>% f
+        filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
         mutate(district = paste0(abb,"_",sprintf("%03d", as.integer(district))))
