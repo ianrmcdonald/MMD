@@ -1,0 +1,44 @@
+variable,name,description
+caseid,case_id,Unique Case Identification Number
+v01,state_no,Number of State in Alphabetical List
+v02,state_cd,State postal Abbreviation
+v03,state_fips,State FIPS Code
+v04,state_icpsr,ICPSR State Code
+v05,year,Year of Election
+v06,month,Month of Election
+v07,chamber,Senate or House
+v08,dist_name,District Name
+v09,dist_number,State Legislative District Number
+v10a,post_position_a,District Post Position that Identifies a Geographic Locale
+v10b,post_position_b,District Post Position That Identifies a Post in a Multimember District (MMD)
+v10c,post_position_c,District Post Position That Identifies Both a Geographic Locale and a Post in a Multimember District
+v12,dist_type,District Type
+v13,winners,Number of Winners for Position
+v14,term_length_law,Length of Term by Law
+v15,term_length_actual,Actual Length of Term
+v16,election_type,Election Type Code
+v17,election_det_sitting_leg,Election Determines a Sitting Legislator
+v19,candidate_name_full,Candidate’s Full Standardized Name
+v20,party_code_detailed,Detailed Party Code
+v21,party_code_simplified,Simplified Party Code
+v22,incumbency_dummy,Incumbency Dummy 1_Incumbent 0_Non-incumbent
+v23,candidate_vote_total,Candidate’s Vote Total
+v24,election_winner,Election Winner
+v41,info_incomplete,Information for Election is Incomplete
+v42,uncertainty,Dummy: Uncertainty Exists for Some Data for This Case
+v43,uncertainty_variable,Specifies Variable There is Uncertainty About
+v44,candidate_last_name,Last Name of Candidate
+v45,candidate_first_name,First Name of Candidate
+v46,candidate_middle_name_1,First Middle Name Component of Candidate
+v47,candidate_middle_name_2,Second Middle Name Component of Candidate
+v48,candidate_middle_name_3,Third Middle Name Component of Candidate
+v49,candidate_middle_name_4,Fourth Middle Name Component of Candidate
+v50,candidate_nickname,Nickname of Candidate
+v51,candidate_suffix,Suffix of Candidate
+v52,candidate_prefix,Prefix or Title of Candidate
+v53,candidate_number_in_name,Number in Candidate’s Name to Differentiate from Other Candidates
+v54,candidate_alternative_last_name,Alternative Last Name for Candidate
+v55,candidate_type_of_alternative_last_name,Type of Alternative Last Name Specified in v51 Above
+v56,leg_dist_number_ICPSR21480,State Legislative District Number from ICPSR #21480
+v57,leg_dist_post_number_ICPSR21480S,tate Legislative District Post Number from ICPSR #21480
+v58,leg_dist_name_ICPSR21480,State Legislative District Name from ICPSR #21480
