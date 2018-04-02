@@ -217,8 +217,11 @@ princeton <- read.csv("Source Data/state_legislative_election_results_1971_2016.
 # Create a standaridized year and district field in all the tables in this format [ST_NNN]
 
 #npat_lower and #npat_upper are fine:  field = district
-npat_lower_WA_OR <- npat_lower %>% filter(st == "WA" | st == "OR" | st == "ID") 
-npat_upper_WA_OR <- npat_upper %>% filter(st == "WA" | st == "OR" | st == "ID")
+npat_lower_WA_OR <- npat_lower %>% 
+        filter(st == "WA" | st == "OR" | st == "ID" | st == "AZ") 
+
+npat_upper_WA_OR <- npat_upper %>% 
+        filter(st == "WA" | st == "OR" | st == "ID" | st == "AZ")
 
 #election data:
 election_data_WA_OR <- election_data %>% 
@@ -234,17 +237,47 @@ princeton_WA_OR <- princeton %>% filter(State == "WA" | State == "OR" | State ==
 
 #tw data
 tw_lower_2002_WA_OR <- tw_lower_2002 %>% 
-        filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
+        filter(abb == "WA" | abb == "OR" | abb == "ID" | abb == "AZ") %>%
         mutate(district = paste0(abb,"_",sprintf("%03d", shd_fips_num %% 100)))
 
 tw_lower_2012_WA_OR <- tw_lower_2012 %>% 
-        filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
+        filter(abb == "WA" | abb == "OR" | abb == "ID" | abb == "AZ") %>%
         mutate(district = paste0(abb,"_",sprintf("%03d", as.integer(district))))
 
 tw_upper_2002_WA_OR <- tw_upper_2002 %>% 
-        filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
+        filter(abb == "WA" | abb == "OR" | abb == "ID" | abb == "AZ") %>%
         mutate(district = paste0(abb,"_",sprintf("%03d", ssd_fips_num %% 100)))
 
-tw_upper_2012_WA_OR <- tw_upper_2012 %>% f
-        filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
+tw_upper_2012_WA_OR <- tw_upper_2012 %>%
+        filter(abb == "WA" | abb == "OR" | abb == "ID" | abb == "AZ") %>%
         mutate(district = paste0(abb,"_",sprintf("%03d", as.integer(district))))
+
+by_state_2002 <- tw_lower_2002_WA_OR %>% 
+        group_by(abb)
+
+by_state_2002 %>% summarise(mean(mrp_mean))
+
+
+by_state_2012 <- tw_lower_2012_WA_OR %>% 
+        group_by(abb)
+
+by_state_2012 %>% summarise(mean(mrp_mean))
+
+# Shor & McCarty Leg. Ideal Point =φ0 + φ1[Tausanovitch & Warshaw Dist. Ideal Point] + φ2[RepublicanP artyDummy] + ε
+# (1) EstimatedDistrictIdealPoint =φ0 + φ1[Tausanovitch & Warshaw Dist. Ideal Point] + λφ2 (2) Ideological Distance = |Shor & McCarty Leg. Ideal Point − EstimatedDistrictIdealPoint| (3)
+
+
+#merge tw and npat data sets
+
+npat_lower_WA_OR_2005 <- npat_lower_WA_OR %>% 
+        filter(year == 2005)
+
+#npat_lower_WA_OR_2005 <- 
+        
+d_2005 <- left_join(x=npat_lower_WA_OR_2005, y=tw_lower_2002_WA_OR)
+
+d_2005 <- d_2005 %>% mutate(pdummy = if_else(party == "R", 1, 0))
+x <- predict(lm(d_2003$np_score ~ d_2003$mrp_mean + d_2003$pdummy))
+x <- predict.lm(d_2003_lm)
+
+
