@@ -236,9 +236,20 @@ princeton_WA_OR <- princeton %>% filter(State == "WA" | State == "OR" | State ==
         mutate(district = paste0(State,"_",sprintf("%03d", District)))
 
 #tw data
-tw_lower_2002_WA_OR <- tw_lower_2002 %>% 
-        filter(abb == "WA" | abb == "OR" | abb == "ID" | abb == "AZ") %>%
+#with fix for missing WA rows; just going to use the senate rows which should be identical
+
+tw_lower_2002_WA_OR_1 <- tw_lower_2002 %>% 
+        filter(abb == "OR" | abb == "ID" | abb == "AZ") %>%
         mutate(district = paste0(abb,"_",sprintf("%03d", shd_fips_num %% 100)))
+
+tw_lower_2002_WA_OR_2 <- tw_upper_2002 %>%  #we use upper here
+        filter(abb == "WA") %>%
+        mutate(district = paste0(abb,"_",sprintf("%03d", ssd_fips_num %% 100))) %>% 
+        rename(shd_fips = ssd_fips, shd_fips_num = ssd_fips_num)
+
+tw_lower_2002_WA_OR <- bind_rows(tw_lower_2002_WA_OR_1, tw_lower_2002_WA_OR_2)
+rm(tw_lower_2002_WA_OR_1, tw_lower_2002_WA_OR_2)
+
 
 tw_lower_2012_WA_OR <- tw_lower_2012 %>% 
         filter(abb == "WA" | abb == "OR" | abb == "ID" | abb == "AZ") %>%
@@ -270,14 +281,18 @@ by_state_2012 %>% summarise(mean(mrp_mean))
 #merge tw and npat data sets
 
 npat_lower_WA_OR_2005 <- npat_lower_WA_OR %>% 
-        filter(year == 2005)
+        filter(year == 2012)
 
 #npat_lower_WA_OR_2005 <- 
         
-d_2005 <- left_join(x=npat_lower_WA_OR_2005, y=tw_lower_2002_WA_OR)
+d_2005 <- left_join(x=npat_lower_WA_OR_2005, y=tw_lower_2012_WA_OR)
 
 d_2005 <- d_2005 %>% mutate(pdummy = if_else(party == "R", 1, 0))
-x <- predict(lm(d_2003$np_score ~ d_2003$mrp_mean + d_2003$pdummy))
-x <- predict.lm(d_2003_lm)
+d_2005_st <- d_2005 %>% group_by(st)
 
-
+d_2005_lm <- lm(d_2005$np_score ~ d_2005$mrp_mean + d_2005$pdummy)
+x <- predict.lm(d_2005_lm)
+edip <- coef(d_2005_lm)[1] + coef(d_2005_lm)[2] * d_2005$mrp_mean + .5 * coef(d_2005_lm)[3]
+id <- d_2005$np_score - edip
+qplot(d_2005_st$mrp_mean, id, colour = d_2005_st$party)
+qplot(data=d_2005, mrp_mean, np_score, colour = party) + facet_wrap(~st)
