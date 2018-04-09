@@ -2,6 +2,7 @@ library(tidyverse)
 library(lubridate)
 library(purrr)
 library(stringr)
+library(readr)
 
 #  https://americanlegislatures.com/data/
 #  https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/K7ELHW
@@ -90,10 +91,10 @@ double_dists <- npat_lower %>%
         summarise(freq = n()) %>% 
         filter(freq > 1)
 
-npat_lower_mmd <- inner_join(npat_lower, double_dists)
+npat_lower <- inner_join(npat_lower, double_dists)
 
 #split districts are those with at least one D and one R in the same term
-split_districts <- npat_lower_mmd %>% group_by(district, year) %>% 
+split_districts <- npat_lower %>% group_by(district, year) %>% 
         count(party) %>% 
         spread(party, n) %>% 
         mutate(D = if_else(is.na(D), 0, as.double(D))) %>% 
@@ -104,7 +105,7 @@ split_districts <- npat_lower_mmd %>% group_by(district, year) %>%
         mutate(state = substr(district,1,2))
 
 #compute means by year, state, and split status
-state_group <- group_by(npat_lower_mmd, district, year)
+state_group <- group_by(npat_lower, district, year)
 
 state_means_and_range <- state_group %>% 
         summarise(mean=mean(np_score), max=max(np_score), min=min(np_score))
@@ -209,51 +210,126 @@ y <- y %>% rowwise() %>% mutate(combo=sum(`100`,`200`*2,na.rm=TRUE))
 
 y <- y %>% group_by(year, dist_number) %>% summarise(total = sum(combo))
 
-princeton <- read_csv("Source Data/state_legislative_election_results_1971_2016.csv",
-                      col_types = 
-                              cols(
-                                      District = col_character()
-                              )
-        )
+princeton <- read.csv("Source Data/state_legislative_election_results_1971_2016.csv")
+
 
 # merge them:  Just WA and OR for now
 
 # Create a standaridized year and district field in all the tables in this format [ST_NNN]
 
 #npat_lower and #npat_upper are fine:  field = district
-npat_lower_WA_OR <- npat_lower %>% filter(st == "WA" | st == "OR" | st == "ID") 
-npat_upper_WA_OR <- npat_upper %>% filter(st == "WA" | st == "OR" | st == "ID")
+npat_lower_WA_OR <- npat_lower %>% 
+        filter(st == "WA" | st == "OR" | st == "ID" | st == "AZ") 
+
+npat_upper_WA_OR <- npat_upper %>% 
+        filter(st == "WA" | st == "OR" | st == "ID" | st == "AZ")
 
 #election data:
 election_data_WA_OR <- election_data %>% 
-        filter(state_cd == "WA" | state_cd == "OR" | state_cd == "ID") %>%
+        filter(state_cd == "WA" | state_cd == "OR" | state_cd == "ID" | state_cd == "AZ") %>%
         mutate(district = paste0(state_cd,"_",sprintf("%03d", dist_number)))
 
 election_data_WA_OR_2011 <- election_data_2011 %>% 
-        filter(state_cd == "WA" | state_cd == "OR" | state_cd == "ID") %>%
+        filter(state_cd == "WA" | state_cd == "OR" | state_cd == "ID" | state_cd == "AZ") %>%
         mutate(district = paste0(state_cd,"_",sprintf("%03d", dist_number)))
 
-princeton_WA_OR <- princeton %>% 
-        filter(State == "WA" | State == "OR" | State == "ID") %>%
-        mutate(district = paste0(State,"_",sprintf("%03s", District)))
+princeton_WA_OR <- princeton %>% filter(State == "WA" | State == "OR" | State == "ID" | State == "AZ") %>%
+        filter(Year > 2010) %>%
+        mutate(District = if_else(State == "ID" & District == "District 1", "District 1A", District)) %>% #data error in raw table
+        mutate(district = paste0(State,"_",sprintf("%03s", District))) %>%
+        mutate(district = if_else(State == "ID" | State == "WA", str_sub(district, 1, str_length(district)-1), district))
+
+
+#Create a split district table from election data
+
+q1 <- election_data_WA_OR %>% filter(election_winner == TRUE & chamber == 9) %>% 
+        mutate(party = if_else(party_code_simplified == 100, "D", if_else(party_code_simplified == 200, "R", "I")))
+
+q1a <- princeton_WA_OR
+
+q2 <- q1 %>% group_by(state_cd, year, district, party)
+q2a <- q1a %>% group_by(state_cd = State, year = Year, district, party = Party)
+
+q3 <- q2 %>%count(party) %>% spread(party,n) %>% 
+        mutate(D = if_else(is.na(D), 0, as.double(D))) %>% 
+        mutate(I = if_else(is.na(I), 0, as.double(I))) %>% 
+        mutate(R = if_else(is.na(R), 0, as.double(R))) %>% 
+        mutate(split = if_else(D >= 1 & R >= 1, TRUE, FALSE)) %>%
+        mutate(split_label = if_else(split==TRUE, "2 Party Dists", "1 Party Dists")) %>%
+        filter(split == TRUE & year >= 1980)
+
+q3a <- q2a %>%count(party) %>% spread(party,n) %>% 
+        mutate(D = if_else(is.na(D), 0, as.double(D))) %>% 
+        #mutate(I = if_else(is.na(I), 0, as.double(I))) %>% 
+        mutate(R = if_else(is.na(R), 0, as.double(R))) %>% 
+        mutate(split = if_else(D >= 1 & R >= 1, TRUE, FALSE)) %>%
+        mutate(split_label = if_else(split==TRUE, "2 Party Dists", "1 Party Dists")) #%>%
+        #filter(split == TRUE)
+
 
 #tw data
-tw_lower_2002_WA_OR <- tw_lower_2002 %>% 
-        filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
+#with fix for missing WA rows; just going to use the senate rows which should be identical
+
+tw_lower_2002_WA_OR_1 <- tw_lower_2002 %>% 
+        filter(abb == "OR" | abb == "ID" | abb == "AZ") %>%
         mutate(district = paste0(abb,"_",sprintf("%03d", shd_fips_num %% 100)))
 
+tw_lower_2002_WA_OR_2 <- tw_upper_2002 %>%  #we use upper here
+        filter(abb == "WA") %>%
+        mutate(district = paste0(abb,"_",sprintf("%03d", ssd_fips_num %% 100))) %>% 
+        rename(shd_fips = ssd_fips, shd_fips_num = ssd_fips_num)
+
+tw_lower_2002_WA_OR <- bind_rows(tw_lower_2002_WA_OR_1, tw_lower_2002_WA_OR_2)
+rm(tw_lower_2002_WA_OR_1, tw_lower_2002_WA_OR_2)
+
+
 tw_lower_2012_WA_OR <- tw_lower_2012 %>% 
-        filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
+        filter(abb == "WA" | abb == "OR" | abb == "ID" | abb == "AZ") %>%
         mutate(district = paste0(abb,"_",sprintf("%03d", as.integer(district))))
 
 tw_upper_2002_WA_OR <- tw_upper_2002 %>% 
-        filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
+        filter(abb == "WA" | abb == "OR" | abb == "ID" | abb == "AZ") %>%
         mutate(district = paste0(abb,"_",sprintf("%03d", ssd_fips_num %% 100)))
 
 tw_upper_2012_WA_OR <- tw_upper_2012 %>%
-        filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
+        filter(abb == "WA" | abb == "OR" | abb == "ID" | abb == "AZ") %>%
         mutate(district = paste0(abb,"_",sprintf("%03d", as.integer(district))))
 
+by_state_2002 <- tw_lower_2002_WA_OR %>% 
+        group_by(abb)
 
-# the GUP file!!!!!! x <- read.table("merged public and legislators.tab")
+by_state_2002 %>% summarise(mean(mrp_mean))
 
+
+by_state_2012 <- tw_lower_2012_WA_OR %>% 
+        group_by(abb)
+
+by_state_2012 %>% summarise(mean(mrp_mean))
+
+# Shor & McCarty Leg. Ideal Point =φ0 + φ1[Tausanovitch & Warshaw Dist. Ideal Point] + φ2[RepublicanP artyDummy] + ε
+# (1) EstimatedDistrictIdealPoint =φ0 + φ1[Tausanovitch & Warshaw Dist. Ideal Point] + λφ2 (2) Ideological Distance = |Shor & McCarty Leg. Ideal Point − EstimatedDistrictIdealPoint| (3)
+
+
+#merge tw and npat data sets
+
+npat_lower_WA_OR_2005 <- npat_lower_WA_OR %>% 
+        filter(year == 2012)
+
+#npat_lower_WA_OR_2005 <- 
+        
+d_2005 <- left_join(x=npat_lower_WA_OR_2005, y=tw_lower_2012_WA_OR)
+
+d_2005 <- d_2005 %>% mutate(pdummy = if_else(party == "R", 1, 0))
+d_2005_st <- d_2005 %>% group_by(st)
+
+d_2005_lm <- lm(d_2005$np_score ~ d_2005$mrp_mean + d_2005$pdummy)
+x <- predict.lm(d_2005_lm)
+edip <- coef(d_2005_lm)[1] + coef(d_2005_lm)[2] * d_2005$mrp_mean + .5 * coef(d_2005_lm)[3]
+id <- d_2005$np_score - edip
+qplot(d_2005_st$mrp_mean, id, colour = d_2005_st$party)
+qplot(data=d_2005, mrp_mean, np_score, colour = party) + facet_wrap(~st)
+
+#GUP
+suppressWarnings(
+district_heterogeneity <- read_table2("Source Data/GUP/merged public and legislators.tab", col_names = TRUE) %>% transmute(state = noquote(st), year = year, district = noquote(sld), pred.np = pred.np, het = het)
+)
