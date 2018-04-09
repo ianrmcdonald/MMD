@@ -90,10 +90,10 @@ double_dists <- npat_lower %>%
         summarise(freq = n()) %>% 
         filter(freq > 1)
 
-npat_lower <- inner_join(npat_lower, double_dists)
+npat_lower_mmd <- inner_join(npat_lower, double_dists)
 
 #split districts are those with at least one D and one R in the same term
-split_districts <- npat_lower %>% group_by(district, year) %>% 
+split_districts <- npat_lower_mmd %>% group_by(district, year) %>% 
         count(party) %>% 
         spread(party, n) %>% 
         mutate(D = if_else(is.na(D), 0, as.double(D))) %>% 
@@ -104,7 +104,7 @@ split_districts <- npat_lower %>% group_by(district, year) %>%
         mutate(state = substr(district,1,2))
 
 #compute means by year, state, and split status
-state_group <- group_by(npat_lower, district, year)
+state_group <- group_by(npat_lower_mmd, district, year)
 
 state_means_and_range <- state_group %>% 
         summarise(mean=mean(np_score), max=max(np_score), min=min(np_score))
@@ -209,8 +209,12 @@ y <- y %>% rowwise() %>% mutate(combo=sum(`100`,`200`*2,na.rm=TRUE))
 
 y <- y %>% group_by(year, dist_number) %>% summarise(total = sum(combo))
 
-princeton <- read.csv("Source Data/state_legislative_election_results_1971_2016.csv")
-
+princeton <- read_csv("Source Data/state_legislative_election_results_1971_2016.csv",
+                      col_types = 
+                              cols(
+                                      District = col_character()
+                              )
+        )
 
 # merge them:  Just WA and OR for now
 
@@ -229,8 +233,9 @@ election_data_WA_OR_2011 <- election_data_2011 %>%
         filter(state_cd == "WA" | state_cd == "OR" | state_cd == "ID") %>%
         mutate(district = paste0(state_cd,"_",sprintf("%03d", dist_number)))
 
-princeton_WA_OR <- princeton %>% filter(State == "WA" | State == "OR" | State == "ID") %>%
-        mutate(district = paste0(State,"_",sprintf("%03d", District)))
+princeton_WA_OR <- princeton %>% 
+        filter(State == "WA" | State == "OR" | State == "ID") %>%
+        mutate(district = paste0(State,"_",sprintf("%03s", District)))
 
 #tw data
 tw_lower_2002_WA_OR <- tw_lower_2002 %>% 
@@ -245,6 +250,10 @@ tw_upper_2002_WA_OR <- tw_upper_2002 %>%
         filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
         mutate(district = paste0(abb,"_",sprintf("%03d", ssd_fips_num %% 100)))
 
-tw_upper_2012_WA_OR <- tw_upper_2012 %>% f
+tw_upper_2012_WA_OR <- tw_upper_2012 %>%
         filter(abb == "WA" | abb == "OR" | abb == "ID") %>%
         mutate(district = paste0(abb,"_",sprintf("%03d", as.integer(district))))
+
+
+# the GUP file!!!!!! x <- read.table("merged public and legislators.tab")
+
