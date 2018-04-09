@@ -8,7 +8,7 @@ library(stringr)
 #  Codebook at https://dataverse.harvard.edu/file.xhtml;jsessionid=1c69c8124a4cfab1d433500079ac?fileId=2690452&version=RELEASED&version=.0
 
 
-npat_source_data <- "Source Data/shor mccarty 1993-2014 state individual legislator scores public June 2015.tab"
+npat_source_data <- "Source Data/shor mccarty 1993-2014 state individual legislator scores public June 2015.tab" #
 
 #the import step
 npat_june_2015 <- npat_source_data %>% 
