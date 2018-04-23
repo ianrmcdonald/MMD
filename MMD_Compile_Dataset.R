@@ -1,3 +1,4 @@
+
 library(tidyverse)
 library(lubridate)
 library(purrr)
@@ -9,9 +10,8 @@ library(readr)
 #  Codebook at https://dataverse.harvard.edu/file.xhtml;jsessionid=1c69c8124a4cfab1d433500079ac?fileId=2690452&version=RELEASED&version=.0
 
 
-npat_source_data <- "Source Data/shor mccarty 1993-2014 state individual legislator scores public June 2015.tab" #
+npat_source_data <- "Source Data/shor mccarty 1993-2014 state individual legislator scores public June 2015.tab" 
 
-#the import step
 npat_june_2015 <- npat_source_data %>% 
         read_delim(delim="\t", escape_double=FALSE) %>% 
         mutate(member_id = paste0(st, sprintf("%04d", st_id)))
@@ -31,6 +31,7 @@ state_legislatures <- leg_counts %>%
 
 state_legislatures <- map_chr(state_legislatures[[1]], as.character) 
 
+#this segment makes it possible to select years from npat_june_2015 (1993 - 2014)
 fields <- names(npat_june_2015[6:93])
 years <- c(1993:2014)
 string_sections <- c("senate", "house", "sdistrict", "hdistrict")
@@ -47,7 +48,12 @@ make_f2 <- map_dbl(years, make_field_name, field_names = fields, string_section 
 make_f3 <- map_dbl(years, make_field_name, field_names = fields, string_section = "senate")
 make_f4 <- map_dbl(years, make_field_name, field_names = fields, string_section = "house")
 
-field_names <- bind_cols(year = years, senate_year = fields[make_f1], house_year = fields[make_f2], senate_districts = fields[make_f3], house_districts = fields[make_f4])
+field_names <- bind_cols(year = years, 
+                         senate_year = fields[make_f1], 
+                         house_year = fields[make_f2], 
+                         senate_districts = fields[make_f3], 
+                         house_districts = fields[make_f4]
+                )
 
 generate_chamber_table <- function(year, chamber="lower") {
         
@@ -105,23 +111,24 @@ split_districts <- npat_lower %>% group_by(district, year) %>%
         mutate(state = substr(district,1,2))
 
 #compute means by year, state, and split status
-state_group <- group_by(npat_lower, district, year)
+state_group <- npat_lower %>% group_by(district, year)
 
 state_means_and_range <- state_group %>% 
         summarise(mean=mean(np_score), max=max(np_score), min=min(np_score))
 
-state_means_and_range <- inner_join(split_districts, state_means_and_range, by=c("district","year"))
+state_means_and_range <- inner_join(split_districts, state_means_and_range, 
+                                    by=c("district", "year"))
 
-state_means_and_range <- inner_join(leg_counts, state_means_and_range, by=c("stcd"="state"))
+state_means_and_range <- inner_join(leg_counts, state_means_and_range, 
+                                    by=c("stcd" = "state"))
 
-state_means_and_range<- state_means_and_range %>% 
+state_means_and_range <- state_means_and_range %>% 
         mutate(range = max - min) %>% 
         select(-one_of(c("upper", "upper_term", "lower_term"))) 
 
-anal <- state_means_and_range %>% 
+state_means_anal <- state_means_and_range %>% 
         group_by(stcd, year) %>% 
         mutate(denom = n()) %>% 
-        
         group_by(split, split_label, add=TRUE) %>% 
         mutate(range = mean(range), count = n()) %>%
         mutate(spct = count / denom) %>% 
@@ -131,56 +138,58 @@ anal <- state_means_and_range %>%
 
 #group_by(df, group) %>% mutate(percent = value/sum(value))
 
-(mmd_plot <- ggplot(data=anal, aes(x=year, y=range, color=ss)) +
+(mmd_plot <- ggplot(data=state_means_anal, aes(x=year, y=range, color=ss)) +
                 ylab("Difference between Max and Min Average NPAT Score") +
                 geom_line(aes(linetype=split_label), show.legend=FALSE) + 
                 facet_wrap(~stcd)+
-                theme(axis.text.x=element_text(color = "black", size=11, angle=30, vjust=.8, hjust=0.8))
+                theme(axis.text.x=element_text(color = "black", 
+                                               size=11, angle=30, vjust=.8, hjust=0.8))
 )
 
 save.image(file = "State Means and Ranges.png")
 
-(mmd_plot <- ggplot(data=anal, aes(x=year, y=spct, color=ss)) +
+(mmd_plot <- ggplot(data=state_means_anal, aes(x=year, y=spct, color=ss)) +
                 ylab("Percentage of All Districts") +
                 geom_line(aes(linetype=split_label), show.legend=FALSE) + 
                 facet_wrap(~stcd) +
-                theme(axis.text.x=element_text(color = "black", size=11, angle=30, vjust=.8, hjust=0.8))
+                theme(axis.text.x=element_text(color = "black", 
+                                               size=11, angle=30, vjust=.8, hjust=0.8))
 )
 
 save.image(file = "Proportion of Districts with One Party v. Two Party")
 
 
-#  Create TW data of district ideology for 2012 districts
+#  Create TW data of district ideology for 2002 and 2012 districts
 
-csv_file <- "Source Data/shd_2012_TW_ideology_estimates.csv"
+tw_csv_file_2012_lower <- "Source Data/shd_2012_TW_ideology_estimates.csv"
 
-tw_lower_2012 <- read_csv(csv_file, col_types = 
+tw_lower_2012 <- read_csv(tw_csv_file_2012_lower, col_types = 
         cols(
                 shd_fips = col_character(),
                 district = col_character()
-                                                   )
+        )
 )
 
-csv_file <- "Source Data/shd_2002_TW_ideology_estimates_v2.csv"
+tw_csv_file_2002_lower <- "Source Data/shd_2002_TW_ideology_estimates_v2.csv"
 
-tw_lower_2002 <- read_csv(csv_file, col_types = 
+tw_lower_2002 <- read_csv(tw_csv_file_2002_lower, col_types = 
         cols(
                 shd_fips = col_character()
                                                    )
 )
 
-csv_file <- "Source Data/ssd_2012_TW_ideology_estimates.csv"
+tw_csv_file_2012_upper <- "Source Data/ssd_2012_TW_ideology_estimates.csv"
 
-tw_upper_2012 <- read_csv(csv_file, col_types = 
+tw_upper_2012 <- read_csv(tw_csv_file_2012_upper, col_types = 
                                   cols(
                                           ssd_fips = col_character(),
                                           district = col_character()
                                   )
 )
 
-csv_file <- "Source Data/ssd_2002_TW_ideology_estimates_v2.csv"
+tw_csv_file_2002_upper <- "Source Data/ssd_2002_TW_ideology_estimates_v2.csv"
 
-tw_upper_2002 <- read_csv(csv_file, col_types = 
+tw_upper_2002 <- read_csv(tw_csv_file_2002_upper, col_types = 
                                   cols(
                                           ssd_fips = col_character()
                                   )
@@ -198,31 +207,24 @@ election_data_col_names <- as_tibble(read_csv("Source Data/dv_names.txt"))
 election_data_col_names_2011 <- as_tibble(read_csv("Source Data/dv_names_2011.txt"))
 names(election_data) <- election_data_col_names$name
 names(election_data_2011) <- election_data_col_names_2011$name
-#election_data <- bind_rows(election_data, x)
-
-
-WA_OR <- election_data %>% filter((state_cd == "WA" | state_cd == "OR") & election_winner == 1 & chamber == 9) %>% 
-        select(c("year", "dist_number", "party_code_simplified")) %>% 
-        mutate(id=1:n(), quantity = 1)  
-
-y <- WA_OR %>% spread(key=party_code_simplified, value=quantity)
-y <- y %>% rowwise() %>% mutate(combo=sum(`100`,`200`*2,na.rm=TRUE))
-
-y <- y %>% group_by(year, dist_number) %>% summarise(total = sum(combo))
 
 princeton <- read.csv("Source Data/state_legislative_election_results_1971_2016.csv")
 
 
-# merge them:  Just WA and OR for now
+# merge them:  Just WA, OR, ID, and AZ for now
 
 # Create a standaridized year and district field in all the tables in this format [ST_NNN]
 
 #npat_lower and #npat_upper are fine:  field = district
 npat_lower_WA_OR <- npat_lower %>% 
-        filter(st == "WA" | st == "OR" | st == "ID" | st == "AZ") 
+        filter(st == "WA" | st == "OR" | st == "ID" | st == "AZ") %>% 
+        mutate(chamber = "lower")
 
 npat_upper_WA_OR <- npat_upper %>% 
-        filter(st == "WA" | st == "OR" | st == "ID" | st == "AZ")
+        filter(st == "WA" | st == "OR" | st == "ID" | st == "AZ") %>% 
+        mutate(chamber = "upper")
+
+npat_WA_OR <- bind_rows(npat_lower_WA_OR, npat_upper_WA_OR)
 
 #election data:
 election_data_WA_OR <- election_data %>% 
@@ -235,11 +237,12 @@ election_data_WA_OR_2011 <- election_data_2011 %>%
 
 princeton_WA_OR <- princeton %>% filter(State == "WA" | State == "OR" | State == "ID" | State == "AZ") %>%
         filter(Year > 2010) %>%
-        mutate(District = if_else(State == "ID" & District == "District 1", "District 1A", District)) %>% #data error in raw table
+        mutate(District = if_else(State == "ID" & 
+                District == "District 1", "District 1A", as.character(District))) %>% 
+                #data error in raw table
         mutate(district = paste0(State,"_",sprintf("%03s", District))) %>%
-        mutate(district = if_else(State == "ID" | State == "WA", str_sub(district, 1, str_length(district)-1), district))
-
-
+        mutate(district = if_else(State == "ID" | State == "WA", 
+                str_sub(district, 1, str_length(district)-1), district))
 #Create a split district table from election data
 
 q1 <- election_data_WA_OR %>% filter(election_winner == TRUE & chamber == 9) %>% 
@@ -312,24 +315,30 @@ by_state_2012 %>% summarise(mean(mrp_mean))
 
 #merge tw and npat data sets
 
-npat_lower_WA_OR_2005 <- npat_lower_WA_OR %>% 
+npat_lower_WA_OR_year <- npat_lower_WA_OR %>% 
         filter(year == 2012)
 
 #npat_lower_WA_OR_2005 <- 
         
-d_2005 <- left_join(x=npat_lower_WA_OR_2005, y=tw_lower_2012_WA_OR)
+d_year <- left_join(x=npat_lower_WA_OR_year, y=tw_lower_2012_WA_OR)
 
-d_2005 <- d_2005 %>% mutate(pdummy = if_else(party == "R", 1, 0))
-d_2005_st <- d_2005 %>% group_by(st)
+d_year <- d_year %>% mutate(pdummy = if_else(party == "R", 1, 0))
+d_year_st <- d_year %>% group_by(st)
 
-d_2005_lm <- lm(d_2005$np_score ~ d_2005$mrp_mean + d_2005$pdummy)
-x <- predict.lm(d_2005_lm)
-edip <- coef(d_2005_lm)[1] + coef(d_2005_lm)[2] * d_2005$mrp_mean + .5 * coef(d_2005_lm)[3]
-id <- d_2005$np_score - edip
-qplot(d_2005_st$mrp_mean, id, colour = d_2005_st$party)
-qplot(data=d_2005, mrp_mean, np_score, colour = party) + facet_wrap(~st)
+d_year_lm <- lm(d_year$np_score ~ d_year$mrp_mean + d_year$pdummy)
+x <- predict.lm(d_year_lm)
+edip <- coef(d_year_lm)[1] + coef(d_year_lm)[2] * d_year$mrp_mean + .5 * coef(d_year_lm)[3]
+id <- d_year$np_score - edip
+qplot(d_year_st$mrp_mean, id, colour = d_year_st$party)
+qplot(data=d_year, mrp_mean, np_score, colour = party) + facet_wrap(~st)
 
 #GUP
 suppressWarnings(
-district_heterogeneity <- read_table2("Source Data/GUP/merged public and legislators.tab", col_names = TRUE) %>% transmute(state = noquote(st), year = year, district = noquote(sld), pred.np = pred.np, het = het)
-)
+district_heterogeneity <- read_table2("Source Data/GUP_merged public and legislators.tab", col_names = TRUE, col_types = cols( st = col_character(), year = col_double(),sld = col_character(), party = col_character(), pred.np = col_double(),het = col_double()))
+) 
+
+%>% transmute(state = noquote(st), year = year, district = noquote(sld), pred.np = pred.np, het = het)
+
+
+
+
