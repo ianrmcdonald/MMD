@@ -337,8 +337,56 @@ suppressWarnings(
 district_heterogeneity <- read_table2("Source Data/GUP_merged public and legislators.tab", col_names = TRUE, col_types = cols( st = col_character(), year = col_double(),sld = col_character(), party = col_character(), pred.np = col_double(),het = col_double()))
 ) 
 
-%>% transmute(state = noquote(st), year = year, district = noquote(sld), pred.np = pred.np, het = het)
+## TABLE 1 Post position and Senate elections in WA and ID
 
+tbl1 <- election_data_WA_OR %>% 
+        filter(state_cd == "WA") %>% 
+        select(district, year, votes_cast_dem, votes_cast_rep, votes_cast_other, 
+               votes_cast_total, incumbency_dummy, party_code_simplified, chamber, post_position_a, post_position_b) %>%
+        mutate(post_position = if_else(is.na(post_position_a), post_position_b, post_position_a)) %>%
+        mutate(inc_democrat = if_else(party_code_simplified == 100 & incumbency_dummy, 1, 0)) %>%
+        mutate(inc_republican = if_else(party_code_simplified == 200 & incumbency_dummy, 1, 0)) %>%
+        mutate(inc_other = if_else(party_code_simplified == 400 & incumbency_dummy, 1, 0))
 
+tbl1 <- unique(tbl1)
 
+tbl1_group <- tbl1 %>% group_by(district, year, post_position, chamber)
 
+tbl1_incumbency <- tbl1_group %>% summarise(inc_d = sum(inc_democrat), inc_r = sum(inc_republican), inc_o = sum(inc_other)) 
+tbl1a <- left_join(tbl1, tbl1_incumbency, by=c("district", "year", "post_position", "chamber"))
+tbl1b <- tbl1a %>% select(-c(inc_democrat, inc_republican, inc_other, incumbency_dummy, party_code_simplified, post_position_a, post_position_b))
+tbl1c <- unique(tbl1b)
+tbl1c <- tbl1c %>% mutate(winner = if_else(votes_cast_other > votes_cast_dem & votes_cast_other > votes_cast_rep, "other",""))
+tbl1c <- tbl1c %>% mutate(winner = if_else(votes_cast_dem > votes_cast_rep & winner != "other", "dem", winner))
+tbl1c <- tbl1c %>% mutate(winner = if_else(votes_cast_rep >= votes_cast_dem & winner != "other", "rep", winner))
+tbl1c <- tbl1c %>% mutate(vote_pct_dem = votes_cast_dem / votes_cast_total, votes_pct_rep = votes_cast_rep / votes_cast_total, votes_pct_other = votes_cast_other / votes_cast_total) %>% mutate(compete = if_else(votes_pct_rep <= COMP_THRESHOLD & votes_pct_rep <= COMP_THRESHOLD,1,0))
+
+tbl1_OR <- election_data_WA_OR %>% 
+        filter(state_cd == "OR" & year >= 2002) %>% 
+        select(district, year, votes_cast_dem, votes_cast_rep, votes_cast_other, 
+               votes_cast_total, incumbency_dummy, party_code_simplified, chamber, post_position_a, post_position_b) %>%
+        mutate(post_position = if_else(is.na(post_position_a), post_position_b, post_position_a)) %>%
+        mutate(inc_democrat = if_else(party_code_simplified == 100 & incumbency_dummy, 1, 0)) %>%
+        mutate(inc_republican = if_else(party_code_simplified == 200 & incumbency_dummy, 1, 0)) %>%
+        mutate(inc_other = if_else(party_code_simplified == 400 & incumbency_dummy, 1, 0))
+
+tbl1_OR <- unique(tbl1_OR)
+
+tbl1_OR_group <- tbl1_OR %>% group_by(district, year, chamber)
+
+tbl1_OR_incumbency <- tbl1_OR_group %>% summarise(inc_d = sum(inc_democrat), inc_r = sum(inc_republican), inc_o = sum(inc_other)) 
+tbl1_ORa <- left_join(tbl1_OR, tbl1_OR_incumbency, by=c("district", "year", "chamber"))
+tbl1_ORb <- tbl1_ORa %>% select(-c(inc_democrat, inc_republican, inc_other, incumbency_dummy, party_code_simplified, post_position_a, post_position_b))
+tbl1_ORc <- unique(tbl1_ORb)
+tbl1_ORc <- tbl1_ORc %>% mutate(winner = if_else(votes_cast_other > votes_cast_dem & votes_cast_other > votes_cast_rep, "other",""))
+tbl1_ORc <- tbl1_ORc %>% mutate(winner = if_else(votes_cast_dem > votes_cast_rep & winner != "other", "dem", winner))
+tbl1_ORc <- tbl1_ORc %>% mutate(winner = if_else(votes_cast_rep >= votes_cast_dem & winner != "other", "rep", winner))
+tbl1_ORc <- tbl1_ORc %>% mutate(vote_pct_dem = votes_cast_dem / votes_cast_total, votes_pct_rep = votes_cast_rep / votes_cast_total, votes_pct_other = votes_cast_other / votes_cast_total) %>% mutate(compete = if_else(votes_pct_rep <= COMP_THRESHOLD & votes_pct_rep <= COMP_THRESHOLD,1,0))
+
+tbl1_ORc <- tbl1_ORc %>% mutate(dnumber = as.integer(str_sub(district,4,6)))
+tbl1_ORc <- tbl1_ORc %>% mutate(senate_district = if_else(chamber == 8, district, paste0("OR_", sprintf("%03d", floor(dnumber/2) + dnumber %% 2))))
+
+tx <- tbl1_ORc %>% filter(year >=  2002 & chamber == 9 & compete) %>% group_by(senate_district, year)  
+ty <- tbl1c %>% filter(year >=  2002 & chamber == 9 & compete) %>% group_by(district, year)
+p <- summarise(tx, delta = max(vote_pct_dem) - min(vote_pct_dem))                                                          
+q <- summarise(ty, delta = max(vote_pct_dem) - min(vote_pct_dem))           
