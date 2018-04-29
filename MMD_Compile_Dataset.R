@@ -9,6 +9,7 @@ library(readr)
 #  https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/K7ELHW
 #  Codebook at https://dataverse.harvard.edu/file.xhtml;jsessionid=1c69c8124a4cfab1d433500079ac?fileId=2690452&version=RELEASED&version=.0
 
+COMP_THRESHOLD <- .9
 
 npat_source_data <- "Source Data/shor mccarty 1993-2014 state individual legislator scores public June 2015.tab" 
 
@@ -89,13 +90,13 @@ npat_lower <- npat_lower %>%
         mutate(district = if_else(st == "WA" | st == "ID", substr(district, 1, 6), district))
 
 # include only states appearing in the state_legislatures vector.
-npat_lower <- npat_lower %>% filter(st %in% state_legislatures)
-npat_upper <- npat_upper %>% filter(st %in% state_legislatures)
+npat_lower <- npat_lower %>% filter(st %in% state_legislatures | st == "OR")
+npat_upper <- npat_upper %>% filter(st %in% state_legislatures | st == "OR")
 
 double_dists <- npat_lower %>% 
         group_by(district, year) %>% 
-        summarise(freq = n()) %>% 
-        filter(freq > 1)
+        summarise(freq = n())# %>% 
+        #filter(freq > 1)
 
 npat_lower <- inner_join(npat_lower, double_dists)
 
@@ -340,7 +341,7 @@ district_heterogeneity <- read_table2("Source Data/GUP_merged public and legisla
 ## TABLE 1 Post position and Senate elections in WA and ID
 
 tbl1 <- election_data_WA_OR %>% 
-        filter(state_cd == "WA") %>% 
+        #filter(state_cd == "WA") %>% 
         select(district, year, votes_cast_dem, votes_cast_rep, votes_cast_other, 
                votes_cast_total, incumbency_dummy, party_code_simplified, chamber, post_position_a, post_position_b) %>%
         mutate(post_position = if_else(is.na(post_position_a), post_position_b, post_position_a)) %>%
@@ -385,8 +386,28 @@ tbl1_ORc <- tbl1_ORc %>% mutate(vote_pct_dem = votes_cast_dem / votes_cast_total
 
 tbl1_ORc <- tbl1_ORc %>% mutate(dnumber = as.integer(str_sub(district,4,6)))
 tbl1_ORc <- tbl1_ORc %>% mutate(senate_district = if_else(chamber == 8, district, paste0("OR_", sprintf("%03d", floor(dnumber/2) + dnumber %% 2))))
+tbl1_ORc <- tbl1_ORc %>% select(-dnumber)
+tbl1c <- tbl1c %>% mutate(senate_district = district) %>% mutate(year = as.integer(year))
+tbl1d <- bind_rows(tbl1c, tbl1_ORc)
 
-tx <- tbl1_ORc %>% filter(year >=  2002 & chamber == 9 & compete) %>% group_by(senate_district, year)  
-ty <- tbl1c %>% filter(year >=  2002 & chamber == 9 & compete) %>% group_by(district, year)
-p <- summarise(tx, delta = max(vote_pct_dem) - min(vote_pct_dem))                                                          
-q <- summarise(ty, delta = max(vote_pct_dem) - min(vote_pct_dem))           
+#merge with npag
+tbl1d <- tbl1d %>% mutate(chamber = if_else(chamber == 8, "upper", "lower"))
+tbl1e <- inner_join(tbl1d, npat_WA_OR, by=c("year", "district", "chamber"))
+
+#merge with tw
+tw_lower_2002_WA_OR <- tw_lower_2002_WA_OR %>% mutate(chamber = "lower")
+tw_upper_2002_WA_OR <- tw_upper_2002_WA_OR %>% mutate(chamber = "upper")
+
+tw_2002 <- bind_rows(tw_lower_2002_WA_OR, tw_upper_2002_WA_OR)
+
+tw_lower_2012_WA_OR <- tw_lower_2012_WA_OR %>% mutate(chamber = "lower")
+tw_upper_2012_WA_OR <- tw_upper_2012_WA_OR %>% mutate(chamber = "upper")
+
+tw_2012 <- bind_rows(tw_lower_2012_WA_OR, tw_upper_2012_WA_OR)
+
+tbl1e <- tbl1e %>%  filter(year >= 2002 & year <= 2010) %>%  mutate(stcd = substr(district,1,2))
+
+tbl1f <- inner_join(tbl1e, tw_2002, by=c("district", "chamber"))
+tbl1f <- tbl1f %>% mutate(winner = as.factor(winner))
+ggplot(tbl1f, aes(x=pres_2008, y=np_score, col = winner )) + geom_point(alpha = 0.4) + facet_wrap(~stcd)
+ggplot(tbl1f, aes(x=mrp_mean, y=np_score, col = winner )) + geom_jitter(alpha = 0.4) + facet_wrap(~stcd) + theme_light()
