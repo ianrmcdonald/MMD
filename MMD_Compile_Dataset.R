@@ -9,7 +9,7 @@ library(readr)
 #  https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/K7ELHW
 #  Codebook at https://dataverse.harvard.edu/file.xhtml;jsessionid=1c69c8124a4cfab1d433500079ac?fileId=2690452&version=RELEASED&version=.0
 
-COMP_THRESHOLD <- .9
+COMP_THRESHOLD <- .9  #the threshold used to determine if both parties competed for a district seat or position
 
 npat_source_data <- "Source Data/shor mccarty 1993-2014 state individual legislator scores public June 2015.tab" 
 
@@ -85,7 +85,8 @@ overall_mean_scores <- npat_lower %>%
         summarise(mean = mean(np_score)) %>% 
         spread(year, mean)
 
-# relabel Washington State and Idaho districts from WA_xxx-0[1 or 2] to WA_xxx
+# relabel Washington State and Idaho districts from ST_xxx-0[1 or 2] to ST_xxx
+npat_lower_all <- npat_lower
 npat_lower <- npat_lower %>% 
         mutate(district = if_else(st == "WA" | st == "ID", substr(district, 1, 6), district))
 
@@ -112,9 +113,11 @@ split_districts <- npat_lower %>% group_by(district, year) %>%
         mutate(state = substr(district,1,2))
 
 #compute means by year, state, and split status
-state_group <- npat_lower %>% group_by(district, year)
+district_group <- npat_lower %>% group_by(district, year)
+state_chamber_group <- npat_lower %>% group_by(st, year)
+state_party_group <- npat_lower %>% group_by(st, party, year)
 
-state_means_and_range <- state_group %>% 
+state_means_and_range <- district_group %>% 
         summarise(mean=mean(np_score), max=max(np_score), min=min(np_score))
 
 state_means_and_range <- inner_join(split_districts, state_means_and_range, 
@@ -140,8 +143,8 @@ state_means_anal <- state_means_and_range %>%
 #group_by(df, group) %>% mutate(percent = value/sum(value))
 
 (mmd_plot <- ggplot(data=state_means_anal, aes(x=year, y=range, color=ss)) +
-                ylab("Difference between Max and Min Average NPAT Score") +
                 geom_line(aes(linetype=split_label), show.legend=FALSE) + 
+                ylab("Difference between Max and Min Average NPAT Score") +
                 facet_wrap(~stcd)+
                 theme(axis.text.x=element_text(color = "black", 
                                                size=11, angle=30, vjust=.8, hjust=0.8))
@@ -159,6 +162,37 @@ save.image(file = "State Means and Ranges.png")
 
 save.image(file = "Proportion of Districts with One Party v. Two Party")
 
+#fiddling with leg deviation
+state_means_and_range_1 <- state_party_group %>% 
+        summarise(median=median(np_score))
+
+state_means_and_range_1 <- inner_join(split_districts, state_means_and_range_1, 
+                                    by=c("state"="st", "year"))
+
+state_means_and_range_2 <- state_means_and_range %>% select("district","year","dist_np"="mean")
+
+state_means_and_range_1 <- inner_join(state_means_and_range_1, state_means_and_range_2, 
+                                      by=c("district","year"))
+
+state_means_and_range_1 <- state_means_and_range_1 %>% 
+        mutate(ldev = abs(dist_np - median)) #%>% 
+        #select(-one_of(c("upper", "upper_term", "lower_term"))) 
+
+state_means_anal_1 <- state_means_and_range_1 %>% 
+        group_by(state, year) %>% 
+        group_by(split, split_label, add=TRUE) %>% 
+        mutate(ldev = mean(ldev), count = n()) %>%
+        mutate(ss = if_else(split==TRUE, 
+                            paste0(state,"-","2 Party Dists"), 
+                            paste0(state,"-","1 Party Dists")))
+
+(mmd_plot <- ggplot(data=state_means_anal_1, aes(x=year, y=ldev, color=ss)) +
+                ylab("Percentage of All Districts") +
+                geom_line(aes(linetype=split_label), show.legend=FALSE) + 
+                facet_wrap(~state) +
+                theme(axis.text.x=element_text(color = "black", 
+                                               size=11, angle=30, vjust=.8, hjust=0.8))
+)
 
 #  Create TW data of district ideology for 2002 and 2012 districts
 
@@ -239,11 +273,11 @@ election_data_WA_OR_2011 <- election_data_2011 %>%
 princeton_WA_OR <- princeton %>% filter(State == "WA" | State == "OR" | State == "ID" | State == "AZ") %>%
         filter(Year > 2010) %>%
         mutate(District = if_else(State == "ID" & 
-                District == "District 1", "District 1A", as.character(District))) %>% 
-                #data error in raw table
+                                          District == "District 1", "District 1A", as.character(District))) %>% 
+        #data error in raw table
         mutate(district = paste0(State,"_",sprintf("%03s", District))) %>%
         mutate(district = if_else(State == "ID" | State == "WA", 
-                str_sub(district, 1, str_length(district)-1), district))
+                                  str_sub(district, 1, str_length(district)-1), district))
 #Create a split district table from election data
 
 q1 <- election_data_WA_OR %>% filter(election_winner == TRUE & chamber == 9) %>% 
@@ -268,7 +302,7 @@ q3a <- q2a %>%count(party) %>% spread(party,n) %>%
         mutate(R = if_else(is.na(R), 0, as.double(R))) %>% 
         mutate(split = if_else(D >= 1 & R >= 1, TRUE, FALSE)) %>%
         mutate(split_label = if_else(split==TRUE, "2 Party Dists", "1 Party Dists")) #%>%
-        #filter(split == TRUE)
+#filter(split == TRUE)
 
 
 #tw data
@@ -411,3 +445,4 @@ tbl1f <- inner_join(tbl1e, tw_2002, by=c("district", "chamber"))
 tbl1f <- tbl1f %>% mutate(winner = as.factor(winner))
 ggplot(tbl1f, aes(x=pres_2008, y=np_score, col = winner )) + geom_point(alpha = 0.4) + facet_wrap(~stcd)
 ggplot(tbl1f, aes(x=mrp_mean, y=np_score, col = winner )) + geom_jitter(alpha = 0.4) + facet_wrap(~stcd) + theme_light()
+
