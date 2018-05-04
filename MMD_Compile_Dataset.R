@@ -1,3 +1,33 @@
+#################################################################################
+
+## MMD Compile Dataset  3 May 2018
+## Import and descriptive graphs for the following datasets based on the Carl Klarner dataverse (Harvard): (see https://americanlegislatures.com/data/)
+
+## 1. State Legislature Election Data 1968-2010 from the Harvard Dataverse (Klarner et al.)
+## https://dataverse.harvard.edu/dataset.xhtml?persistentId=hdl:1902.1/20401
+
+## 2. Princeton update to Klerner dataset extending in 2016 (lower chambers only)
+## http://election.princeton.edu/2017/09/26/new-dataset-state-legislative-elections-1971-2012/
+
+## 3.  State Legislature Election Data 2011-12 extension:
+## https://dataverse.harvard.edu/dataset.xhtml?persistentId=hdl:1902.1/21549
+
+## 4.  NPAT Source Data (based on Shor McCarty 2011)
+##  https://americanlegislatures.com/data/
+
+## 5.  Multimember status and number of legislators by state
+## https://ballotpedia.org/State_legislative_chambers_that_use_multi-member_districts
+
+
+##  See also:  https://libguides.princeton.edu/politics/american/states
+
+#################################################################################
+
+
+
+
+#################################################################################
+##  1. Load packages
 
 library(tidyverse)
 library(lubridate)
@@ -5,13 +35,22 @@ library(purrr)
 library(stringr)
 library(readr)
 
-#  https://americanlegislatures.com/data/
-#  https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/K7ELHW
-#  Codebook at https://dataverse.harvard.edu/file.xhtml;jsessionid=1c69c8124a4cfab1d433500079ac?fileId=2690452&version=RELEASED&version=.0
+## Does library(tidyverse) automatically load all of this stuff?  I'm not sure
+#################################################################################
+
+#################################################################################
+## 2. Global variables
 
 COMP_THRESHOLD <- .9  #the threshold used to determine if both parties competed for a district seat or position
 
 npat_source_data <- "Source Data/shor mccarty 1993-2014 state individual legislator scores public June 2015.tab" 
+
+#################################################################################
+
+#################################################################################
+## 3.  Create unedited npat dataset (npat_master).  NPAT is the Shor McCarty dataset measuring legislator ideology (analogous to DW-NOMINATE first dimension, and then synchronized across legislatures using survey data).  NPAT score are "lifetime" scores; they do not vary across sessions for a given legislator.  
+
+## npat_master selects the legislator name, party, state, unique member id, and np score.
 
 npat_june_2015 <- npat_source_data %>% 
         read_delim(delim="\t", escape_double=FALSE) %>% 
@@ -21,27 +60,33 @@ if (nrow(npat_june_2015) != length(unique(npat_june_2015$member_id))) message("E
 
 npat_master <- npat_june_2015 %>% 
         select(name, party, st, member_id, np_score)
+#################################################################################
 
-#https://ballotpedia.org/State_legislative_chambers_that_use_multi-member_districts
+#################################################################################
+## 4.  Create a table that identifies each states multi-member status (true/false) and number of legislators in each chamber
 
 leg_counts <- read_csv("Source Data/district numbers.csv")
 
-state_legislatures <- leg_counts %>% 
+MMD_state_legislatures <- leg_counts %>% 
         filter(double == TRUE) %>%  
         select(stcd) 
 
-state_legislatures <- map_chr(state_legislatures[[1]], as.character) 
+MMD_state_legislatures <- map_chr(MMD_state_legislatures[[1]], as.character) 
+#################################################################################
 
-#this segment makes it possible to select years from npat_june_2015 (1993 - 2014)
+#################################################################################
+## 5.  The final npat table is reformatted and can select a particular ragne of years between 1993 and 2014.
+
 fields <- names(npat_june_2015[6:93])
 years <- c(1993:2014)
 string_sections <- c("senate", "house", "sdistrict", "hdistrict")
 
 make_field_name <- function(year, field_names, string_section) {
         
-        s <- paste0(string_section, as.character(year))
-        x <- str_detect(s, field_names)
-        which(x)
+        string <- paste0(string_section, as.character(year))
+        bool_contains_string <- str_detect(string, field_names)
+        which(bool_contains_string)
+        
 }
 
 make_f1 <- map_dbl(years, make_field_name, field_names = fields, string_section = "sdistrict")
@@ -54,7 +99,11 @@ field_names <- bind_cols(year = years,
                          house_year = fields[make_f2], 
                          senate_districts = fields[make_f3], 
                          house_districts = fields[make_f4]
-                )
+)
+#################################################################################
+
+#################################################################################
+## 6. Generate reshaped NPAT table for each chamber
 
 generate_chamber_table <- function(year, chamber="lower") {
         
@@ -80,24 +129,47 @@ generate_chamber_table <- function(year, chamber="lower") {
 npat_lower <- map_dfr(years, generate_chamber_table, chamber = "lower")
 npat_upper <- map_dfr(years, generate_chamber_table, chamber = "upper")
 
-overall_mean_scores <- npat_lower %>% 
+#################################################################################
+
+#################################################################################
+##  7.  Generate mean npat scores by state/year
+state_mean_npat <- npat_lower %>% 
         group_by(st, year) %>% 
         summarise(mean = mean(np_score)) %>% 
         spread(year, mean)
+#################################################################################
 
-# relabel Washington State and Idaho districts from ST_xxx-0[1 or 2] to ST_xxx
-npat_lower_all <- npat_lower
+#################################################################################
+## 8.  Relabel Washington State and Idaho districts from ST_xxx-0[1 or 2] to ST_xxx
+
 npat_lower <- npat_lower %>% 
         mutate(district = if_else(st == "WA" | st == "ID", substr(district, 1, 6), district))
 
-# include only states appearing in the state_legislatures vector.
-npat_lower <- npat_lower %>% filter(st %in% state_legislatures | st == "OR")
-npat_upper <- npat_upper %>% filter(st %in% state_legislatures | st == "OR")
+#################################################################################
+
+#################################################################################
+## 9.  Exclude non-MMD states from npat_lower and npat_upper (and add Oregon for now)
+
+npat_lower <- npat_lower %>% 
+        filter(st %in% MMD_state_legislatures | st == "OR") %>%
+        mutate(chamber = "lower")
+
+npat_upper <- npat_upper %>% 
+        filter(st %in% MMD_state_legislatures | st == "OR") %>%
+        mutate(chamber = "lower")
+
+npat_both_chambers <- bind_rows(npat_lower, npat_upper)
+        
+
+#################################################################################
+
+#################################################################################
+
 
 double_dists <- npat_lower %>% 
         group_by(district, year) %>% 
         summarise(freq = n())# %>% 
-        #filter(freq > 1)
+#filter(freq > 1)
 
 npat_lower <- inner_join(npat_lower, double_dists)
 
@@ -167,7 +239,7 @@ state_means_and_range_1 <- state_party_group %>%
         summarise(median=median(np_score))
 
 state_means_and_range_1 <- inner_join(split_districts, state_means_and_range_1, 
-                                    by=c("state"="st", "year"))
+                                      by=c("state"="st", "year"))
 
 state_means_and_range_2 <- state_means_and_range %>% select("district","year","dist_np"="mean")
 
@@ -176,7 +248,7 @@ state_means_and_range_1 <- inner_join(state_means_and_range_1, state_means_and_r
 
 state_means_and_range_1 <- state_means_and_range_1 %>% 
         mutate(ldev = abs(dist_np - median)) #%>% 
-        #select(-one_of(c("upper", "upper_term", "lower_term"))) 
+#select(-one_of(c("upper", "upper_term", "lower_term"))) 
 
 state_means_anal_1 <- state_means_and_range_1 %>% 
         group_by(state, year) %>% 
@@ -199,18 +271,18 @@ state_means_anal_1 <- state_means_and_range_1 %>%
 tw_csv_file_2012_lower <- "Source Data/shd_2012_TW_ideology_estimates.csv"
 
 tw_lower_2012 <- read_csv(tw_csv_file_2012_lower, col_types = 
-        cols(
-                shd_fips = col_character(),
-                district = col_character()
-        )
+                                  cols(
+                                          shd_fips = col_character(),
+                                          district = col_character()
+                                  )
 )
 
 tw_csv_file_2002_lower <- "Source Data/shd_2002_TW_ideology_estimates_v2.csv"
 
 tw_lower_2002 <- read_csv(tw_csv_file_2002_lower, col_types = 
-        cols(
-                shd_fips = col_character()
-                                                   )
+                                  cols(
+                                          shd_fips = col_character()
+                                  )
 )
 
 tw_csv_file_2012_upper <- "Source Data/ssd_2012_TW_ideology_estimates.csv"
@@ -354,7 +426,7 @@ npat_lower_WA_OR_year <- npat_lower_WA_OR %>%
         filter(year == 2012)
 
 #npat_lower_WA_OR_2005 <- 
-        
+
 d_year <- left_join(x=npat_lower_WA_OR_year, y=tw_lower_2012_WA_OR)
 
 d_year <- d_year %>% mutate(pdummy = if_else(party == "R", 1, 0))
@@ -369,7 +441,7 @@ qplot(data=d_year, mrp_mean, np_score, colour = party) + facet_wrap(~st)
 
 #GUP
 suppressWarnings(
-district_heterogeneity <- read_table2("Source Data/GUP_merged public and legislators.tab", col_names = TRUE, col_types = cols( st = col_character(), year = col_double(),sld = col_character(), party = col_character(), pred.np = col_double(),het = col_double()))
+        district_heterogeneity <- read_table2("Source Data/GUP_merged public and legislators.tab", col_names = TRUE, col_types = cols( st = col_character(), year = col_double(),sld = col_character(), party = col_character(), pred.np = col_double(),het = col_double()))
 ) 
 
 ## TABLE 1 Post position and Senate elections in WA and ID
