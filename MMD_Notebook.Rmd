@@ -1,8 +1,8 @@
 ---
 title: "Multi Member District Analysis"
 output:
-  pdf_document: default
   html_notebook: default
+  pdf_document: default
 ---
 Ian McDonald
 14-Feb-2018
@@ -16,7 +16,7 @@ I use data reported from 2015 covering 1993-2014.
 The code applies Tidyverse modules, including dplyr, ggplot2, and purrr.  
 
 ```{r}
-library(tidyverse)
+suppressMessages(library("tidyverse"))
 library(lubridate)
 library(stringr)
 ```
@@ -24,7 +24,7 @@ library(stringr)
 We import the raw data file into the npat_june_2015 table.  The raw table contains over 90 columns; npat_master contains only legislator attributes without columns labeled by year.
 
 ```{r}
-source_data <- "shor mccarty 1993-2014 state individual legislator scores public June 2015.tab" ##
+source_data <- "shor mccarty 1993-2014 state individual legislator scores public June 2015.tab"
 
 npat_june_2015 <- source_data %>% 
         read_delim(delim="\t", escape_double=FALSE, col_types=cols()) %>% 
@@ -140,7 +140,7 @@ double_dists <- lower %>%
         summarise(freq = n()) %>% 
         filter(freq > 1)
 
-lower <- inner_join(lower, double_dists)
+lower <- inner_join(lower, double_dists, messages = FALSE)
 
 #split districts are those with at least one D and one R in the same term
 split_districts <- lower %>% 
@@ -183,7 +183,6 @@ anal <- state_means_and_range %>%
                 paste0(stcd,"-","2 Party Dists"), 
                 paste0(stcd,"-","1 Party Dists")))
 
-#group_by(df, group) %>% mutate(percent = value/sum(value))
 ```
 
 The states shown have multi-member districts.  The solid line represents districts where each representative comes from the same party.  The dashed lines are districts with one (or more) representative from each party. 
@@ -194,13 +193,19 @@ subtitle_1 <- "Differences between Difference between Max and Min Average NPAT S
 caption_1 <- "Solid Line = Members from Same Party, Dashed Line = Members from 2+ parties"
 
 mmd_plot_1 <- ggplot(data=anal, aes(x=year, y=range, color=ss)) +
-        ylab("Difference between Max and Min Average NPAT Score") +
-        labs(title = title_1, subtitle = subtitle_1) +
+        #ylab("Difference between Max and Min Average NPAT Score") +
+        labs(title = title_1, subtitle = subtitle_1, caption = caption_1) +
         geom_line(aes(linetype=split_label), show.legend=FALSE) + 
         facet_wrap(~stcd)+
         theme(axis.text.x=element_text(color = "black", size=6, angle=30, vjust=.8, hjust=0.8))
 
+mmd_plot_1
+
 save.image(file = "State Means and Ranges.png")
+```
+
+
+```{r}
 title_2 <- "Multi Member District State Legislatures"
 subtitle_2 <- "Proportion of Districts with One Party v. Two Party"
 caption_2 <- "Solid Line = Members from Same Party, Dashed Line = Members from 2+ parties"
